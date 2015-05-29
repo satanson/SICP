@@ -1,0 +1,12 @@
+(load "util.rkt")
+(define (min-factor n)
+  (define (iter p)
+    (cond ((< n (square p)) n)
+          ((zero? (modulo n p))p)
+          (else (iter (+ 1 p)))))
+  (iter 2))
+  
+(define (prime? n)(= (min-factor n) n))
+(define (prime-sum-range a b)(filter-accumulate prime? + 0 square a inc b))
+(foldr (lambda (x y)(+ y (square x))) 0 '(2 3 5 7))
+(prime-sum-range 2 10)

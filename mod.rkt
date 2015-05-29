@@ -1,0 +1,15 @@
+(define (sum0 xs)(foldr + 0 xs))
+(define (max0 xs)
+  (if (null? xs) 
+      '()
+      (foldr max (car xs) (cdr xs))
+      )
+  )
+
+(define (min0 xs)
+  (if (null? xs) 
+      '()
+      (foldr min (car xs) (cdr xs))
+      )
+  )
+

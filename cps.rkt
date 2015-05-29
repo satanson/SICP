@@ -1,0 +1,5 @@
+(define (pyth& x y k)
+ (*& x x (lambda (x2)
+          (*& y y (lambda (y2)
+                   (+& x2 y2 (lambda (x2py2)
+                              (sqrt& x2py2 k))))))))
