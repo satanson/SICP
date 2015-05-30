@@ -1,5 +1,6 @@
 #lang racket
 (require r5rs)
+(require racket/list)
 (define-syntax s-cons
   (syntax-rules()
     ((s-cons a b) (cons a (delay b)))))
@@ -143,11 +144,11 @@
 ;(s-for-each println (s-drop (s-take foobar 20) 0))
 
 (define (s-scale s a) (s-map (lambda(x)(* a x)) s))
-(define pow2
+(define geometric-series2
   (let f ()
     (s-cons 1 (s-scale (f) 2))))
 
-;(s-for-each println (s-drop (s-take pow2 64) 0))
+;(s-for-each println (s-drop (s-take geometric-series2 64) 0))
 
 (define (s-mul sa sb) (s-map * sa sb))
 (define factorials
@@ -231,10 +232,10 @@
 ;                   (mul-series cosine-series cosine-series))
 ;            20))
 
-(define (pow n)
+(define (geometric-series n)
   (let stream ()
     (s-cons 1 (s-scale (stream) n))))
-(define ones2 (pow -1))
+(define ones2 (geometric-series -1))
 ;(s-println (s-take ones2 10))
 ;(s-println (s-take (mul-series ones ones2) 10))
 
@@ -242,21 +243,21 @@
   (let stream ((m 0))
     (s-cons (if (= 0 (modulo m n)) 1 0) (stream (+ m 1)))))
 (comment  
-(s-println (s-take
-            (mul-series 
-             (ones-zeros 1)
-             (mul-series
-              (ones-zeros 5)
+ (s-println (s-take
+             (mul-series 
+              (ones-zeros 1)
               (mul-series
-               (ones-zeros 10)
+               (ones-zeros 5)
                (mul-series
-                (ones-zeros 25)
+                (ones-zeros 10)
                 (mul-series
-                 (ones-zeros 50)
-                 (ones-zeros 100))))))
-            1000))
-
-)
+                 (ones-zeros 25)
+                 (mul-series
+                  (ones-zeros 50)
+                  (ones-zeros 100))))))
+             1000))
+ 
+ )
 
 (define (invert-unit-series s)
   (let stream ()
@@ -267,18 +268,145 @@
   (if (= 0 (s-car s2))
       (error "constant-term of denominator is zero!" "")
       (let ((invert-const-term (/ 1 (s-car s2))))
-          (mul-series
-           (s-scale (invert-unit-series (s-scale s2 invert-const-term)) 
-                    invert-const-term)
-           s1))))
+        (mul-series
+         (s-scale (invert-unit-series (s-scale s2 invert-const-term)) 
+                  invert-const-term)
+         s1))))
 
 (define tangent-series (div-series sine-series cosine-series))
 (comment
-(define pi 3.14159265358979)
-(s-println (s-take 
-            (partial-sums 
-            (s-mul tangent-series
-                   (pow (/ pi 4))))
-            20))
-;0.9999991904960968
-)
+ (define pi 3.14159265358979)
+ (s-println (s-take 
+             (partial-sums 
+              (s-mul tangent-series
+                     (geometric-series (/ pi 4))))
+             20))
+ ;0.9999991904960968
+ )
+(define (average . xs)
+  (/ (apply + xs) (length xs)))
+(define (sqrt-improve guess x)
+  (average guess (/ x guess)))
+
+(define (sqrt-series a)
+  (let stream ()
+    (s-cons 1 (s-map (lambda(x)(sqrt-improve  x a))(stream)))))
+;(s-println (s-take (sqrt-series 2.0) 20))
+;(s-println (s-take (sqrt-series 2.0) 20))
+;(comment
+(define pi-series
+  (let ((odds-series (s-filter odd? integers))
+        (geometric-series-of-minus-one (geometric-series -1)))
+    (s-scale
+     (s-map (lambda(x) (/ 1.0 x)) 
+            (s-mul odds-series geometric-series-of-minus-one))
+     4)))
+;)
+;(s-println (s-take (partial-sums pi-series) 1000)) 
+(define square (lambda(x) (* x x)))
+(define (euler-transform s)
+  (let ((s0 (s-nth s 0))           ; Sn-1
+        (s1 (s-nth s 1))           ; Sn
+        (s2 (s-nth s 2)))          ; Sn+1
+    (s-cons (- s2 (/ (square (- s2 s1))
+                     (+ s0 (* -2 s1) s2)))
+            (euler-transform (s-cdr s)))))
+
+;(s-println (s-take (euler-transform (partial-sums pi-series)) 1000))
+(define (make-tableau transform s)
+  (s-cons s
+          (make-tableau transform
+                        (transform s))))
+(define (accelerated-sequence transform s)
+  (s-map s-car
+         (make-tableau transform s)))
+(comment
+ (s-println (s-take (accelerated-sequence euler-transform
+                                          (partial-sums pi-series)) 8))
+ )
+
+(define (s-limit s boundary)
+  (let ((a (s-car s))
+        (b (s-car (s-cdr s))))
+    (if (< (abs (- a b)) boundary)
+        b
+        (s-limit (s-cdr s) boundary))))
+;(s-limit (sqrt-series 2.0) 0.0001)
+
+(define ln2-series
+  (let ((geometric-series-of-minus-one (geometric-series -1))
+        (pos-integers (s-drop integers 1)))
+    (s-map (lambda(x) (/ 1.0 x)) 
+           (s-mul pos-integers geometric-series-of-minus-one))))
+
+(define ln2 (partial-sums ln2-series))
+;(comment
+;(s-println (s-take (accelerated-sequence euler-transform ln2) 10))
+;)
+
+(define (pairs s t)
+  (s-cons
+   (list (s-car s) (s-car t))
+   (interleave
+    (s-map (lambda (x) (list (s-car s) x))
+           (s-cdr t))
+    (pairs (s-cdr s) (s-cdr t)))))
+
+(define (interleave s1 s2)
+  (if (s-null? s1)
+      s2
+      (s-cons (s-car s1)
+              (interleave s2 (s-cdr s1)))))
+
+(define (s-take-until p s)
+  (if (or (s-null? s) (p (s-car s)))
+      s-nil
+      (s-cons (s-car s) (s-take-until p (s-cdr s)))))
+(define (s-drop-until p s)
+  (if (or (s-null? s) (p (s-car s)))
+      s
+      (s-drop-until p (s-cdr s))))
+(define (s-length s)
+  (s-foldr + 0 (s-map (lambda(_) 1) s)))
+(define pos-integers (s-drop integers 1))
+(define in-pairs (pairs pos-integers pos-integers))
+(define (print-pairs-until pair)
+  ;(s-println (s-take-until (lambda(x)(equal? x pair))in-pairs))
+  (print "length=")
+  (println (s-length (s-take-until (lambda(x)(equal? x pair))in-pairs))))
+(comment
+ (print-pairs-until '(1 100))
+ (print-pairs-until '(99 100))
+ (print-pairs-until '(100 100))
+ )
+
+(define (pairs2 s t)
+  (if (or (s-null? s) (s-null? t))
+      s-nil
+      (interleave
+       (s-map (lambda (x) (list (s-car s) x))
+              t)
+       (pairs2 (s-cdr s) (s-cdr t)))))
+;(comment
+(define pairs3
+  (let ((integer-0-9 (s-take integers 10)))
+    (pairs2 integer-0-9 integer-0-9)))
+;)
+;(println (s-length pairs3))
+(define (flatten0 orig-sexp)
+  (let loop ([sexp orig-sexp] [acc null])
+    (cond [(null? sexp) acc]
+          [(pair? sexp) (loop (car sexp) (loop (cdr sexp) acc))]
+          [else (cons sexp acc)])))
+
+(define (triples S T U)
+  (s-map (lambda(x)(flatten0 x))
+         (pairs S (pairs T U))))
+(define (pythagorean? x y z) (= (+ (square x) (square y)) (square z)))
+(define pythagorean-triples
+  (s-filter (lambda(xyz)(apply pythagorean? xyz))
+            (triples pos-integers pos-integers pos-integers)))
+;(s-println (s-take pythagorean-triples 2))
+
+
+;(flatten0 '((1) 2 3))
