@@ -1,6 +1,18 @@
 #lang racket
 (require r5rs)
 (require racket/list)
+(provide s-cons s-car s-cdr
+         s-nil s-null? s-length s-nth
+         s-scale s-add s-mul s-take s-drop
+         s-map s-filter s-foldr s-for-each
+         s-println
+         s-merge
+         mul-series div-series
+         s-range
+         integers pos-integers
+         partial-sums
+         comment
+         )
 (define-syntax s-cons
   (syntax-rules()
     ((s-cons a b) (cons a (delay b)))))
